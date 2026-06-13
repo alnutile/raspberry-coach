@@ -1,0 +1,17 @@
+# footage and extracted frames — never commit raw video
+*.mp4
+*.mov
+*.avi
+*.mkv
+frames/
+out/
+*.report.json
+
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
