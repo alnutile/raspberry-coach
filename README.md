@@ -68,45 +68,42 @@ won't run heavy models well, so keep inference off the device for now.
 
 ## Quick start (Loop 0)
 
-Use Python 3.12 in a virtualenv. **Avoid Python 3.14** — it's too new for the
-CV libraries Loop 1 needs, and some Homebrew 3.14 builds ship a broken `pyexpat`
-that breaks `pip` itself.
+Use [`uv`](https://docs.astral.sh/uv/). It downloads a self-contained Python
+that bundles its own libraries — which dodges a nasty Homebrew bug where the
+bundled `pyexpat` is linked against the wrong system `libexpat` and crashes
+`pip` itself (`Symbol not found: _XML_SetAlloc...`). Don't use Homebrew's
+`python@3.x` for this; even a fresh install hits it.
 
 ```bash
-# 1. Working interpreter (skip if `python3.12` already runs)
-brew install python@3.12          # macOS
+# 1. uv (one-time)
+brew install uv                    # or: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Isolated env
-python3.12 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+# 2. Self-contained env + deps (needs ffmpeg on PATH: `brew install ffmpeg`)
+uv venv --python 3.12              # standalone 3.12, no system-library mess
+source .venv/bin/activate
+uv pip install -r requirements.txt
 
-# 3. Dependencies (needs ffmpeg on PATH too: `brew install ffmpeg`)
-pip install -r requirements.txt
-
-# 4. API key — copy the example and fill it in
+# 3. API key — copy the example and fill it in
 cp .env.example .env               # then edit .env, or: export ANTHROPIC_API_KEY=sk-ant-...
 
-# 5. Run the probe
+# 4. Run the probe
 python experiments/loop0_claude_vision/analyze.py path/to/serves.mp4 --focus serve
 ```
 
-The script auto-loads `.env`, so once it's filled in you don't need to export
-anything. You get a JSON coaching report — read it next to the video and ask the
-only question that matters at this stage: *would a coach agree?*
+3.12 is deliberate — Loop 1's CV libraries (MediaPipe, etc.) don't ship 3.14
+wheels yet. The script auto-loads `.env`, so once it's filled in you don't need
+to export anything. You get a JSON coaching report — read it next to the video
+and ask the only question that matters at this stage: *would a coach agree?*
 
-> **If `pip` itself crashes** with `Symbol not found: _XML_SetAlloc...` /
-> `pyexpat`, your base Python (usually Homebrew 3.14) is broken against the
-> system `libexpat`. A venv won't fix it — it reuses the same broken
-> interpreter. Install 3.12 as above and build the venv from that.
->
-> **If `python3.12 -m venv` fails at `ensurepip`**, create the venv without pip
-> and bootstrap it directly:
-> ```bash
-> rm -rf .venv
-> python3.12 -m venv --without-pip .venv
-> source .venv/bin/activate
-> curl -sS https://bootstrap.pypa.io/get-pip.py | python
-> pip install -r requirements.txt
-> ```
-> Sanity-check the interpreter with `python3.12 -c "import pyexpat, ssl"` — if
-> that throws, run `brew reinstall python@3.12`.
+### If you'd rather not use uv
+
+A Homebrew-Python venv works *only* if its `pyexpat` is healthy. Check first:
+
+```bash
+python3.12 -c "import pyexpat, ssl; print('stdlib ok')"
+```
+
+- Prints `stdlib ok` → `python3.12 -m venv .venv && source .venv/bin/activate &&
+  pip install -r requirements.txt`.
+- Throws `Symbol not found: _XML_SetAlloc...` → the Homebrew bottle is broken;
+  a venv or reinstall won't fix it. Use `uv` above (or a python.org installer).
