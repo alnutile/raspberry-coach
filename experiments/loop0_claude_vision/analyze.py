@@ -114,24 +114,34 @@ REPORT_SCHEMA = {
 }
 
 
-def extract_frames(video: Path, interval: float, max_frames: int, out_dir: Path) -> list[Path]:
-    """Pull one frame every `interval` seconds, capped at `max_frames`."""
+def extract_frames(
+    video: Path,
+    interval: float,
+    max_frames: int,
+    out_dir: Path,
+    start: float | None = None,
+    duration: float | None = None,
+) -> list[Path]:
+    """Pull one frame every `interval` seconds, capped at `max_frames`.
+
+    `start`/`duration` trim to the window that actually contains the action —
+    crucial because spreading a handful of frames across a long clip skips the
+    fast moments (like the serve contact) entirely.
+    """
     if shutil.which("ffmpeg") is None:
         sys.exit("ffmpeg not found on PATH — install it (e.g. `brew install ffmpeg`).")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     pattern = str(out_dir / "frame_%04d.jpg")
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
+    if start is not None:
+        cmd += ["-ss", str(start)]          # before -i: fast seek to the window
+    cmd += ["-i", str(video)]
+    if duration is not None:
+        cmd += ["-t", str(duration)]
     # fps=1/interval samples evenly; -qscale keeps JPEGs small but readable.
-    subprocess.run(
-        [
-            "ffmpeg", "-hide_banner", "-loglevel", "error",
-            "-i", str(video),
-            "-vf", f"fps=1/{interval}",
-            "-qscale:v", "3",
-            pattern,
-        ],
-        check=True,
-    )
+    cmd += ["-vf", f"fps=1/{interval}", "-qscale:v", "3", pattern]
+    subprocess.run(cmd, check=True)
     frames = sorted(out_dir.glob("frame_*.jpg"))
     if not frames:
         sys.exit("No frames extracted — is the video readable?")
@@ -196,8 +206,10 @@ def main() -> None:
         choices=sorted(FOCUS_GUIDES),
         help="What the player is practicing (default: general).",
     )
-    parser.add_argument("--interval", type=float, default=1.0, help="Seconds between sampled frames.")
-    parser.add_argument("--max-frames", type=int, default=12, help="Max frames to send.")
+    parser.add_argument("--interval", type=float, default=0.5, help="Seconds between sampled frames (denser catches fast moments like contact).")
+    parser.add_argument("--max-frames", type=int, default=16, help="Max frames to send.")
+    parser.add_argument("--start", type=float, help="Trim: seconds into the clip to start sampling.")
+    parser.add_argument("--duration", type=float, help="Trim: seconds of clip to sample from --start.")
     parser.add_argument("--out", type=Path, help="Write the JSON report here too.")
     args = parser.parse_args()
 
@@ -215,7 +227,10 @@ def main() -> None:
         sys.exit("Set ANTHROPIC_API_KEY (export it or put it in a .env file).")
 
     with tempfile.TemporaryDirectory() as tmp:
-        frames = extract_frames(args.video, args.interval, args.max_frames, Path(tmp) / "frames")
+        frames = extract_frames(
+            args.video, args.interval, args.max_frames, Path(tmp) / "frames",
+            start=args.start, duration=args.duration,
+        )
         print(f"Sampled {len(frames)} frames; asking {MODEL} for a read...", file=sys.stderr)
         report = analyze(frames, args.focus)
 
