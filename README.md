@@ -98,3 +98,15 @@ only question that matters at this stage: *would a coach agree?*
 > `pyexpat`, your base Python (usually Homebrew 3.14) is broken against the
 > system `libexpat`. A venv won't fix it — it reuses the same broken
 > interpreter. Install 3.12 as above and build the venv from that.
+>
+> **If `python3.12 -m venv` fails at `ensurepip`**, create the venv without pip
+> and bootstrap it directly:
+> ```bash
+> rm -rf .venv
+> python3.12 -m venv --without-pip .venv
+> source .venv/bin/activate
+> curl -sS https://bootstrap.pypa.io/get-pip.py | python
+> pip install -r requirements.txt
+> ```
+> Sanity-check the interpreter with `python3.12 -c "import pyexpat, ssl"` — if
+> that throws, run `brew reinstall python@3.12`.
