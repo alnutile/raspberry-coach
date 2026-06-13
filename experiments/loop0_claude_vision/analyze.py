@@ -201,10 +201,18 @@ def main() -> None:
     parser.add_argument("--out", type=Path, help="Write the JSON report here too.")
     args = parser.parse_args()
 
+    # Load ANTHROPIC_API_KEY from a .env if present; real env vars still win.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
     if not args.video.exists():
         sys.exit(f"Video not found: {args.video}")
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("Set ANTHROPIC_API_KEY first.")
+        sys.exit("Set ANTHROPIC_API_KEY (export it or put it in a .env file).")
 
     with tempfile.TemporaryDirectory() as tmp:
         frames = extract_frames(args.video, args.interval, args.max_frames, Path(tmp) / "frames")
