@@ -8,6 +8,33 @@ wherever you want it — locally on a Mac, on a server, or through the Claude AP
 
 No paid service, no lock-in. The device just captures; the brains are swappable.
 
+## Get started in 2 minutes
+
+You need three things: [`uv`](https://docs.astral.sh/uv/), `ffmpeg`, and an
+[Anthropic API key](https://console.anthropic.com).
+
+```bash
+# macOS (Linux: see uv's install page)
+brew install uv ffmpeg
+
+git clone https://github.com/alnutile/raspberry-coach.git
+cd raspberry-coach
+./run.sh          # first run creates a .env — paste your key into it, then run again
+```
+
+`./run.sh` sets up a self-contained Python env, installs everything, and starts
+the app at **http://localhost:8000**. Upload a practice clip, pick what you're
+working on, and read the coaching report. That's it.
+
+> **Why a script and not a downloadable app?** While this is moving fast, a
+> one-command script keeps onboarding simple *and* lets you pull updates with a
+> `git pull`. A packaged/double-click release makes sense later, once things
+> settle — see [Roadmap](#status).
+
+Prefer the command line, or want to script it? See
+[`experiments/loop0_claude_vision/`](experiments/loop0_claude_vision/) for the
+CLI, and [`ui/`](ui/) for UI details.
+
 ## The strategy: validate the brain before the body
 
 The hardware (Pi + camera + battery + sync-home) is well-trodden and low-risk.
@@ -60,13 +87,20 @@ won't run heavy models well, so keep inference off the device for now.
 
 ## Status
 
-- [x] Loop 0 scaffold — Claude-vision coaching probe (`experiments/loop0_claude_vision/`)
-- [ ] Loop 0 run on real footage
+- [x] Loop 0 — Claude-vision coaching probe, CLI (`experiments/loop0_claude_vision/`)
+- [x] Loop 0 — run on real footage (signal confirmed; capture angle is the limiter)
+- [x] Local web UI — upload, render reports, SQLite history (`ui/`)
+- [ ] Evals — promptfoo regression guard once there's a corpus of runs
 - [ ] Loop 1 — local pose + ball-tracking metrics
 - [ ] Loop 2 — hardware capture rig
 - [ ] Loop 3 — distilled local model
+- [ ] Packaged release — a double-click app once the tool stabilizes
+      (premature while iterating; the `./run.sh` + `git pull` flow wins for now)
 
-## Quick start (Loop 0)
+## Manual setup (under the hood / CLI)
+
+`./run.sh` above does all of this for you. Here's what it's doing, for when you
+want to run the CLI directly or debug the environment.
 
 Use [`uv`](https://docs.astral.sh/uv/). It downloads a self-contained Python
 that bundles its own libraries — which dodges a nasty Homebrew bug where the
@@ -86,8 +120,11 @@ uv pip install -r requirements.txt
 # 3. API key — copy the example and fill it in
 cp .env.example .env               # then edit .env, or: export ANTHROPIC_API_KEY=sk-ant-...
 
-# 4. Run the probe
+# 4a. Run the CLI probe
 python experiments/loop0_claude_vision/analyze.py path/to/serves.mp4 --focus serve
+
+# 4b. ...or launch the web UI (what ./run.sh starts)
+uvicorn ui.app:app --reload        # then open http://localhost:8000
 ```
 
 3.12 is deliberate — Loop 1's CV libraries (MediaPipe, etc.) don't ship 3.14
