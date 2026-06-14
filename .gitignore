@@ -12,6 +12,9 @@ videos/
 # secrets
 .env
 
+# local UI data — uploaded clips and the history database stay on your machine
+ui/data/
+
 # python
 __pycache__/
 *.pyc
