@@ -115,6 +115,13 @@ BASE = """
   details { margin-top: 1rem; } pre { overflow:auto; background:#8881; padding:1rem;
             border-radius:8px; }
   .note { color:#888; font-size:13px; }
+  button:disabled { opacity:.6; cursor:progress; }
+  .working { display:flex; align-items:center; gap:.6rem; padding:.7rem .9rem;
+             border-radius:8px; background:#2563eb18; color:#2563eb; font-size:14px; }
+  .spinner { width:16px; height:16px; border:3px solid #2563eb44;
+             border-top-color:#2563eb; border-radius:50%; flex:0 0 auto;
+             animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style></head><body>
 <h1><a href="/">🏓 raspberry-coach</a></h1>
 {% block body %}{% endblock %}
@@ -127,7 +134,7 @@ INDEX = """
 {% if not has_key %}
 <p class="badge error">ANTHROPIC_API_KEY not set — export it or add a .env before analyzing.</p>
 {% endif %}
-<form action="/analyze" method="post" enctype="multipart/form-data">
+<form action="/analyze" method="post" enctype="multipart/form-data" id="analyze-form">
   <label>Clip <input type="file" name="file" accept="video/*" required></label>
   <div class="row">
     <label>Focus
@@ -146,9 +153,23 @@ INDEX = """
     <label>Interval (s)<input type="number" name="interval" step="0.05" min="0.05" value="0.5"></label>
     <label>Max frames<input type="number" name="max_frames" min="1" value="16"></label>
   </div>
-  <button type="submit">Analyze</button>
+  <button type="submit" id="go">Analyze</button>
   <span class="note">Analysis runs Claude on the sampled frames — expect ~20–60s.</span>
+  <div id="working" class="working" hidden>
+    <span class="spinner"></span>
+    <span>Analyzing… sampling frames and asking the coach (~20–60s). This page
+      will jump to your report when it's done — no need to click again.</span>
+  </div>
 </form>
+<script>
+  document.getElementById('analyze-form').addEventListener('submit', function (e) {
+    var btn = document.getElementById('go');
+    if (btn.disabled) { e.preventDefault(); return; }   // guard double-submit
+    btn.disabled = true;
+    btn.textContent = 'Analyzing…';
+    document.getElementById('working').hidden = false;
+  });
+</script>
 
 <h2>History</h2>
 {% if rows %}
