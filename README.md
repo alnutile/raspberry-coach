@@ -107,3 +107,14 @@ python3.12 -c "import pyexpat, ssl; print('stdlib ok')"
   pip install -r requirements.txt`.
 - Throws `Symbol not found: _XML_SetAlloc...` → the Homebrew bottle is broken;
   a venv or reinstall won't fix it. Use `uv` above (or a python.org installer).
+
+
+```
+python experiments/loop0_claude_vision/analyze.py videos/wall.mp4 --focus general \
+  --subject "me hitting the wall" --start 8 --duration 4 --interval 0.25
+```
+
+```
+python experiments/loop0_claude_vision/analyze.py videos/wall.mp4 --focus general \
+  --subject "me hitting the wall" --interval 0.25
+```

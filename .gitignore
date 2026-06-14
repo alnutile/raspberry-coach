@@ -4,6 +4,7 @@
 *.avi
 *.mkv
 frames/
+results/
 out/
 videos/
 *.report.json
