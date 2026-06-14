@@ -5,6 +5,7 @@
 *.mkv
 frames/
 out/
+videos/
 *.report.json
 
 # secrets
