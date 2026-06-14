@@ -17,9 +17,19 @@ python analyze.py path/to/serves.mp4 --focus serve
 Options:
 
 - `--focus {serve,return,dink,drive,general}` — what the player is practicing.
+- `--subject "player in the white shirt, near side"` — who to analyze. **Use
+  this for doubles/group footage** so the model locks onto one person and
+  doesn't blend players together. Without it, the model picks whoever is most
+  active and tells you who it chose.
+- `--start 8 --duration 4` — trim sampling to the window with the action, so
+  frames land on the actual reps instead of spreading across a long clip.
 - `--interval 0.5` — seconds between sampled frames (denser = more detail, more cost).
 - `--max-frames 16` — cap on frames sent in one request.
 - `--out report.json` — also write the report to a file.
+
+Every report includes `subject_analyzed` echoing back who the feedback is
+about — check it to confirm the model focused on the right player (and didn't
+drift to someone else between frames).
 
 ## How to read the result
 

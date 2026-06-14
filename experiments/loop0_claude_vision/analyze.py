@@ -66,6 +66,15 @@ FOCUS_GUIDES = {
 REPORT_SCHEMA = {
     "type": "object",
     "properties": {
+        "subject_analyzed": {
+            "type": "string",
+            "description": (
+                "Which player on court this feedback is about (e.g. 'player in "
+                "the white shirt, near side'). If you had to guess because no "
+                "subject was specified, say so. If you lost track of them or "
+                "they changed between frames, flag it here."
+            ),
+        },
         "footage_quality": {
             "type": "object",
             "properties": {
@@ -109,7 +118,7 @@ REPORT_SCHEMA = {
             "description": "How much the feedback can be trusted given footage quality.",
         },
     },
-    "required": ["footage_quality", "observations", "top_drills", "confidence"],
+    "required": ["subject_analyzed", "footage_quality", "observations", "top_drills", "confidence"],
     "additionalProperties": False,
 }
 
@@ -148,14 +157,26 @@ def extract_frames(
     return frames[:max_frames]
 
 
-def build_content(frames: list[Path], focus: str) -> list[dict]:
+def build_content(frames: list[Path], focus: str, subject: str | None) -> list[dict]:
     """Interleave labeled frames into a single vision message."""
+    if subject:
+        who = (
+            f"Focus your analysis ONLY on: {subject}. Track this same person "
+            "across all the frames; ignore the other players on court except as "
+            "context. If you can't confidently find them in a frame, skip it."
+        )
+    else:
+        who = (
+            "There may be several people on court. Pick the one who is actively "
+            f"practicing their {focus} (usually the most involved in the action) "
+            "and analyze only that person, consistently, across all frames."
+        )
     content: list[dict] = [
         {
             "type": "text",
             "text": (
                 f"Here are {len(frames)} frames sampled in order from a pickleball "
-                f"practice clip. The player is working on their {focus}. "
+                f"practice clip. The player is working on their {focus}. {who} "
                 "Analyze what you can actually see across the sequence."
             ),
         }
@@ -172,7 +193,7 @@ def build_content(frames: list[Path], focus: str) -> list[dict]:
     return content
 
 
-def analyze(frames: list[Path], focus: str) -> dict:
+def analyze(frames: list[Path], focus: str, subject: str | None) -> dict:
     client = anthropic.Anthropic()
     guide = FOCUS_GUIDES.get(focus, FOCUS_GUIDES["general"])
 
@@ -181,7 +202,9 @@ def analyze(frames: list[Path], focus: str) -> dict:
         "footage. Give honest, concrete, encouraging feedback grounded only in "
         "what is visible in the frames. If the footage is too low-quality, the "
         "angle is wrong, or you genuinely cannot tell, say so plainly and rate "
-        "those aspects 'cant_tell' — do not invent detail. "
+        "those aspects 'cant_tell' — do not invent detail. Stay locked on the "
+        "one player you're asked to analyze; don't blend in other people on "
+        "court. "
         f"For this {focus} session, pay attention to: {guide}"
     )
 
@@ -190,7 +213,7 @@ def analyze(frames: list[Path], focus: str) -> dict:
         max_tokens=4000,
         thinking={"type": "adaptive"},
         system=system,
-        messages=[{"role": "user", "content": build_content(frames, focus)}],
+        messages=[{"role": "user", "content": build_content(frames, focus, subject)}],
         output_config={"format": {"type": "json_schema", "schema": REPORT_SCHEMA}},
     )
     text = next(b.text for b in response.content if b.type == "text")
@@ -210,6 +233,7 @@ def main() -> None:
     parser.add_argument("--max-frames", type=int, default=16, help="Max frames to send.")
     parser.add_argument("--start", type=float, help="Trim: seconds into the clip to start sampling.")
     parser.add_argument("--duration", type=float, help="Trim: seconds of clip to sample from --start.")
+    parser.add_argument("--subject", help="Who to analyze in plain language, e.g. 'player in the white shirt, near side'. Important for doubles footage.")
     parser.add_argument("--out", type=Path, help="Write the JSON report here too.")
     args = parser.parse_args()
 
@@ -232,7 +256,7 @@ def main() -> None:
             start=args.start, duration=args.duration,
         )
         print(f"Sampled {len(frames)} frames; asking {MODEL} for a read...", file=sys.stderr)
-        report = analyze(frames, args.focus)
+        report = analyze(frames, args.focus, args.subject)
 
     out = json.dumps(report, indent=2)
     print(out)
