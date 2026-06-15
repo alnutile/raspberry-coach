@@ -83,6 +83,7 @@ BASE = """
 <title>raspberry-coach</title>
 <style>
   :root { color-scheme: light dark; }
+  [hidden] { display: none !important; }   /* beat .working's display:flex */
   body { font: 15px/1.5 system-ui, sans-serif; max-width: 860px; margin: 2rem auto;
          padding: 0 1rem; }
   h1 { margin-bottom: .2rem; } h1 a { text-decoration: none; color: inherit; }
