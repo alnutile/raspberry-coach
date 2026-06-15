@@ -122,6 +122,7 @@ BASE = """
              border-top-color:#2563eb; border-radius:50%; flex:0 0 auto;
              animation:spin .8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
+  .done { background:#16a34a18; color:#16a34a; font-weight:600; }
 </style></head><body>
 <h1><a href="/">🏓 raspberry-coach</a></h1>
 {% block body %}{% endblock %}
@@ -162,12 +163,24 @@ INDEX = """
   </div>
 </form>
 <script>
-  document.getElementById('analyze-form').addEventListener('submit', function (e) {
-    var btn = document.getElementById('go');
+  var form = document.getElementById('analyze-form');
+  var btn = document.getElementById('go');
+  var working = document.getElementById('working');
+
+  form.addEventListener('submit', function (e) {
     if (btn.disabled) { e.preventDefault(); return; }   // guard double-submit
     btn.disabled = true;
     btn.textContent = 'Analyzing…';
-    document.getElementById('working').hidden = false;
+    working.hidden = false;
+  });
+
+  // Reset to a clean "ready" state whenever this page is shown — including when
+  // the browser restores it from the back/forward cache after a run (otherwise
+  // it reappears stuck in the disabled "Analyzing…" state).
+  window.addEventListener('pageshow', function () {
+    btn.disabled = false;
+    btn.textContent = 'Analyze';
+    working.hidden = true;
   });
 </script>
 
@@ -201,6 +214,7 @@ SESSION = """
     <p>{{ row['report'] }}</p></div>
 {% else %}
   {% set rep = report %}
+  <div class="card done">✓ Analysis complete — your report is below.</div>
   <div class="card">
     <span class="badge {{ rep['confidence'] }}">confidence: {{ rep['confidence'] }}</span>
     <p><strong>Analyzing:</strong> {{ rep['subject_analyzed'] }}</p>
