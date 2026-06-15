@@ -6,7 +6,9 @@ then analyze the footage for classic coaching feedback: contact height, net
 clearance, return depth, ready position, footwork, form. Analysis runs
 wherever you want it — locally on a Mac, on a server, or through the Claude API.
 
-No paid service, no lock-in. The device just captures; the brains are swappable.
+![](images/respberry-coach.gif)
+
+> No paid service, no lock-in. The device just captures; the brains are swappable.
 
 ## Get started in 2 minutes
 
