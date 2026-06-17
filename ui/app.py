@@ -17,12 +17,14 @@ import json
 import tempfile
 from pathlib import Path
 
+from urllib.parse import quote
+
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, UploadFile
+from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from jinja2 import Environment, select_autoescape
 
-from ui import core, watcher
+from ui import core, notify, watcher
 from ui.core import UPLOAD_DIR, db  # noqa: F401  (db used throughout)
 
 coach = core.coach  # the shared analyze.py engine
@@ -92,6 +94,8 @@ BASE = """
   .watching { background:#7c3aed18; color:#7c3aed; padding:.6rem .9rem;
               border-radius:8px; font-size:14px; }
   .watching code { background:#7c3aed22; padding:.1rem .3rem; border-radius:4px; }
+  form.inline { display:inline; gap:0; padding:0; border:0; border-radius:0; }
+  form.inline button { padding:.25rem .6rem; font-size:13px; }
 </style></head><body>
 <h1><a href="/">🏓 raspberry-coach</a></h1>
 {% block body %}{% endblock %}
@@ -158,6 +162,16 @@ INDEX = """
    · drop a clip here → auto-analyzed as <strong>{{ watch['focus'] }}</strong>
    {% if watch['emails'] %}· emailing results{% else %}· email off{% endif %}</p>
 {% endif %}
+
+{% if email_ok %}
+<p class="badge {{ 'good' if email_ok == 'ok' else 'error' }}" style="display:block;padding:.6rem .9rem">
+  {% if email_ok == 'ok' %}✓ Test email sent — check your inbox.{% else %}✗ {{ email_msg }}{% endif %}</p>
+{% endif %}
+
+<p class="note">
+  Email: {% if watch['emails'] %}configured{% else %}not configured (set RESEND_API_KEY + NOTIFY_EMAIL in .env){% endif %}
+  <form action="/test-email" method="post" class="inline"><button>Send test email</button></form>
+</p>
 
 <h2>History</h2>
 {% if rows %}
@@ -227,7 +241,7 @@ def render(template: str, **ctx) -> str:
 
 # ------------------------------------------------------------------------ routes
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
+def index(request: Request) -> str:
     import os
 
     with db() as conn:
@@ -240,7 +254,16 @@ def index() -> str:
         focuses=sorted(coach.FOCUS_GUIDES),
         has_key=bool(os.environ.get("ANTHROPIC_API_KEY")),
         watch=watcher.status(),
+        email_ok=request.query_params.get("email"),       # 'ok' | 'err' | None
+        email_msg=request.query_params.get("emailmsg", ""),
     )
+
+
+@app.post("/test-email")
+def test_email() -> RedirectResponse:
+    sent, msg = notify.send_report(notify.sample_result())
+    flag = "ok" if sent else "err"
+    return RedirectResponse(f"/?email={flag}&emailmsg={quote(msg)}", status_code=303)
 
 
 @app.post("/analyze")

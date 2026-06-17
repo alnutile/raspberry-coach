@@ -58,6 +58,24 @@ def build_html(result: dict) -> str:
     )
 
 
+def sample_result() -> dict:
+    """A fake-but-valid result for the 'send test email' button."""
+    return {
+        "sid": "test", "status": "ok", "confidence": "medium",
+        "filename": "sample-clip.mp4",
+        "report": {
+            "confidence": "medium",
+            "subject_analyzed": "(test) player in the white shirt",
+            "footage_quality": {"usable": True,
+                                "notes": "This is a test email from raspberry-coach."},
+            "observations": [{"aspect": "email delivery", "rating": "good",
+                              "assessment": "If you're reading this, Resend is working."}],
+            "top_drills": ["No drills — this is just a connectivity test."],
+        },
+        "report_text": "test",
+    }
+
+
 def send_report(result: dict) -> tuple[bool, str]:
     """Email a processed result. Returns (sent, message). Never raises."""
     if not configured():
