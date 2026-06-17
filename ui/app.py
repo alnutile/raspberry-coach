@@ -14,10 +14,7 @@ Needs ANTHROPIC_API_KEY (export it or put it in a .env) and ffmpeg on PATH.
 """
 
 import json
-import sqlite3
-import sys
-import uuid
-from datetime import datetime, timezone
+import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -25,53 +22,21 @@ from fastapi import FastAPI, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from jinja2 import Environment, select_autoescape
 
-# Reuse the CLI engine verbatim — one source of truth for the analysis.
-LOOP0_DIR = Path(__file__).resolve().parent.parent / "experiments" / "loop0_claude_vision"
-sys.path.insert(0, str(LOOP0_DIR))
-import analyze as coach  # noqa: E402
+from ui import core, watcher
+from ui.core import UPLOAD_DIR, db  # noqa: F401  (db used throughout)
+
+coach = core.coach  # the shared analyze.py engine
 
 load_dotenv()
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
-UPLOAD_DIR = DATA_DIR / "uploads"
-DB_PATH = DATA_DIR / "coach.db"
 
 app = FastAPI(title="raspberry-coach")
 
 
-# --------------------------------------------------------------------------- db
-def db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db() -> None:
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    with db() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL,
-                filename TEXT NOT NULL,
-                video_path TEXT NOT NULL,
-                focus TEXT NOT NULL,
-                subject TEXT,
-                params TEXT NOT NULL,
-                status TEXT NOT NULL,          -- 'ok' or 'error'
-                confidence TEXT,
-                subject_analyzed TEXT,
-                report TEXT,                   -- JSON report, or error message
-                frames_used INTEGER
-            )
-            """
-        )
-
-
 @app.on_event("startup")
 def _startup() -> None:
-    init_db()
+    core.init_db()
+    watcher.start()
+
 
 
 # -------------------------------------------------------------------- templates
@@ -124,6 +89,9 @@ BASE = """
              animation:spin .8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
   .done { background:#16a34a18; color:#16a34a; font-weight:600; }
+  .watching { background:#7c3aed18; color:#7c3aed; padding:.6rem .9rem;
+              border-radius:8px; font-size:14px; }
+  .watching code { background:#7c3aed22; padding:.1rem .3rem; border-radius:4px; }
 </style></head><body>
 <h1><a href="/">🏓 raspberry-coach</a></h1>
 {% block body %}{% endblock %}
@@ -185,15 +153,22 @@ INDEX = """
   });
 </script>
 
+{% if watch['enabled'] %}
+<p class="watching">👀 Watching <code>{{ watch['watch_dir'] }}</code>
+   · drop a clip here → auto-analyzed as <strong>{{ watch['focus'] }}</strong>
+   {% if watch['emails'] %}· emailing results{% else %}· email off{% endif %}</p>
+{% endif %}
+
 <h2>History</h2>
 {% if rows %}
 <table>
-  <tr><th>When</th><th>Clip</th><th>Focus</th><th>Confidence</th></tr>
+  <tr><th>When</th><th>Clip</th><th>Focus</th><th>Source</th><th>Confidence</th></tr>
   {% for r in rows %}
   <tr>
     <td>{{ r['created_at'][:16].replace('T',' ') }}</td>
     <td><a href="/session/{{ r['id'] }}">{{ r['filename'] }}</a></td>
     <td>{{ r['focus'] }}</td>
+    <td><span class="badge cant_tell">{{ r['source'] or 'ui' }}</span></td>
     <td>{% if r['status'] == 'ok' %}<span class="badge {{ r['confidence'] }}">{{ r['confidence'] }}</span>
         {% else %}<span class="badge error">error</span>{% endif %}</td>
   </tr>
@@ -264,6 +239,7 @@ def index() -> str:
         rows=rows,
         focuses=sorted(coach.FOCUS_GUIDES),
         has_key=bool(os.environ.get("ANTHROPIC_API_KEY")),
+        watch=watcher.status(),
     )
 
 
@@ -277,48 +253,22 @@ def run_analyze(
     interval: float = Form(0.5),
     max_frames: int = Form(16),
 ) -> RedirectResponse:
-    sid = uuid.uuid4().hex[:12]
-    ext = Path(file.filename or "clip.mp4").suffix or ".mp4"
-    video_path = UPLOAD_DIR / f"{sid}{ext}"
-    video_path.write_bytes(file.file.read())
-
     def num(s: str):
         s = (s or "").strip()
         return float(s) if s else None
 
     params = {"start": num(start), "duration": num(duration),
               "interval": interval, "max_frames": max_frames}
-    subject = subject.strip() or None
 
-    status, confidence, subj_analyzed, report_text, frames_used = "ok", None, None, None, None
-    import tempfile
-
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            frames = coach.extract_frames(
-                video_path, interval, max_frames, Path(tmp) / "frames",
-                start=params["start"], duration=params["duration"],
-            )
-            frames_used = len(frames)
-            report = coach.analyze(frames, focus, subject)
-        report_text = json.dumps(report)
-        confidence = report.get("confidence")
-        subj_analyzed = report.get("subject_analyzed")
-    except SystemExit as e:        # extract_frames/analyze call sys.exit on bad input
-        status, report_text = "error", str(e)
-    except Exception as e:         # API errors, bad video, etc.
-        status, report_text = "error", f"{type(e).__name__}: {e}"
-
-    with db() as conn:
-        conn.execute(
-            "INSERT INTO sessions (id, created_at, filename, video_path, focus, "
-            "subject, params, status, confidence, subject_analyzed, report, frames_used) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (sid, datetime.now(timezone.utc).isoformat(), file.filename or "clip",
-             str(video_path), focus, subject, json.dumps(params), status,
-             confidence, subj_analyzed, report_text, frames_used),
+    suffix = Path(file.filename or "clip.mp4").suffix or ".mp4"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
+        tmp.write(file.file.read())
+        tmp.flush()
+        result = core.process_video(
+            Path(tmp.name), file.filename or "clip", focus,
+            subject.strip() or None, params, source="ui",
         )
-    return RedirectResponse(f"/session/{sid}", status_code=303)
+    return RedirectResponse(f"/session/{result['sid']}", status_code=303)
 
 
 @app.get("/session/{sid}", response_class=HTMLResponse)
