@@ -96,6 +96,8 @@ BASE = """
   .watching code { background:#7c3aed22; padding:.1rem .3rem; border-radius:4px; }
   form.inline { display:inline; gap:0; padding:0; border:0; border-radius:0; }
   form.inline button { padding:.25rem .6rem; font-size:13px; }
+  details.setup summary { cursor:pointer; color:#2563eb; font-size:14px; margin:.4rem 0; }
+  details.setup ul { margin:.3rem 0; }
 </style></head><body>
 <h1><a href="/">🏓 raspberry-coach</a></h1>
 {% block body %}{% endblock %}
@@ -173,6 +175,27 @@ INDEX = """
   <form action="/test-email" method="post" class="inline"><button>Send test email</button></form>
 </p>
 
+<details class="setup">
+  <summary>⚙️ Setup — watch a Dropbox folder &amp; email results</summary>
+  <div class="card">
+    <p><strong>Current status</strong></p>
+    <ul>
+      <li>Claude API key: {{ 'set ✓' if has_key else 'NOT set ✗' }}</li>
+      <li>Watch folder: <code>{{ watch['watch_dir'] or 'not set' }}</code></li>
+      <li>Email (Resend): {{ 'configured ✓' if watch['emails'] else 'not configured' }}</li>
+    </ul>
+    <p>Edit <code>{{ env_path }}</code>, add the lines you want below, then
+       <strong>restart</strong> the app (<code>Ctrl-C</code>, then <code>./run.sh</code>) —
+       changes to <code>.env</code> only take effect on restart.</p>
+    <pre>{{ env_help }}</pre>
+    <p class="note">Watch the local folder your <strong>Dropbox desktop app</strong> syncs
+       into, and set that folder to <em>"Make available offline"</em> so files aren't
+       online-only placeholders. The default <code>onboarding@resend.dev</code> sender only
+       delivers to your own Resend account email — verify a domain and set
+       <code>RESEND_FROM</code> to email anywhere.</p>
+  </div>
+</details>
+
 <h2>History</h2>
 {% if rows %}
 <table>
@@ -239,6 +262,19 @@ def render(template: str, **ctx) -> str:
     return env.from_string(template).render(base=env.from_string(BASE), **ctx)
 
 
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+ENV_HELP = """# Watch a folder (point at your Dropbox-synced folder, absolute path)
+WATCH_DIR=/Users/you/Dropbox/pickleball-incoming
+WATCH_FOCUS=serve                 # serve | return | dink | drive | general
+# WATCH_SUBJECT=player in the white shirt, near side
+
+# Email results via Resend (https://resend.com)
+RESEND_API_KEY=re_...
+NOTIFY_EMAIL=you@example.com
+# RESEND_FROM=onboarding@resend.dev   # verified domain to send anywhere
+"""
+
+
 # ------------------------------------------------------------------------ routes
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> str:
@@ -256,6 +292,8 @@ def index(request: Request) -> str:
         watch=watcher.status(),
         email_ok=request.query_params.get("email"),       # 'ok' | 'err' | None
         email_msg=request.query_params.get("emailmsg", ""),
+        env_path=str(ENV_PATH),
+        env_help=ENV_HELP,
     )
 
 
