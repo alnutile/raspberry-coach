@@ -1,4 +1,9 @@
-# raspberry-coach
+# raspberry-coach (or just your phone)
+
+> For now it is phone based
+
+<img width="1774" height="887" alt="coach" src="https://github.com/user-attachments/assets/8f0ac68e-6317-4528-98d3-a84cbc7a9b9e" />
+
 
 A DIY, open-source pickleball coach. Record a practice session on a cheap
 battery-powered device (Raspberry Pi or an r1-class all-in-one with a camera),
