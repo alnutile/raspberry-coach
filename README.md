@@ -37,6 +37,45 @@ Prefer the command line, or want to script it? See
 [`experiments/loop0_claude_vision/`](experiments/loop0_claude_vision/) for the
 CLI, and [`ui/`](ui/) for UI details.
 
+## Hands-off mode: watch a folder + email results
+
+Instead of uploading clips by hand, you can point the app at a folder and have
+it auto-process anything dropped in — analyze it, add it to history, move it to
+`processed/`, and email you the report. Pair it with a **Dropbox-synced folder**
+and you can record on the court, let Dropbox sync it home, and get the coaching
+report in your inbox automatically.
+
+Configure it in `.env` (the home page's **⚙️ Setup** panel shows your current
+status and these same lines):
+
+```bash
+# Watch a folder — point at a folder your Dropbox desktop app syncs into
+WATCH_DIR=/Users/you/Dropbox/pickleball-incoming
+WATCH_FOCUS=serve                 # serve | return | dink | drive | general
+
+# Email results via Resend (https://resend.com)
+RESEND_API_KEY=re_...
+NOTIFY_EMAIL=you@example.com
+```
+
+> ⚠️ **`.env` is only read at startup — restart the app after editing it**
+> (`Ctrl-C`, then `./run.sh`). This is the #1 "why isn't my change showing up?"
+> gotcha.
+
+Two more things to know:
+
+- **Dropbox:** watch the local folder your Dropbox *desktop app* syncs into —
+  once synced it's a real local file, no Dropbox API needed. Set that folder to
+  **"Make available offline"** so files aren't online-only placeholders. The
+  watcher waits for the file to finish syncing before processing.
+- **Email:** the default sender `onboarding@resend.dev` **only delivers to your
+  own Resend account email.** To email anywhere, verify a domain in Resend and
+  set `RESEND_FROM`. Use the **Send test email** button to confirm delivery
+  without dropping a real clip.
+
+Full option list (processed/failed dirs, sampling, poll interval) is in
+[`.env.example`](.env.example) and [`ui/README.md`](ui/README.md).
+
 ## The strategy: validate the brain before the body
 
 The hardware (Pi + camera + battery + sync-home) is well-trodden and low-risk.
