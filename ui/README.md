@@ -65,6 +65,12 @@ tagged `watch` in the history Source column. Dropped clips are analyzed across
 the whole clip (no start/duration trim) — for precise contact analysis on a
 specific rep, use the upload form with a tight window.
 
+**Name the file to tell the coach what you're working on.** The dropped
+filename becomes a note passed into the prompt: `backhand drop to kitchen.mp4`
+→ the coach is told *"the player labeled this clip 'backhand drop to kitchen'"*
+and tailors feedback to it. Generic camera names (`PXL_…`, `IMG_…`) are ignored.
+In the upload form, the same thing is the **"Working on"** field.
+
 ## Storage
 
 Everything is local and gitignored:

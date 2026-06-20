@@ -123,6 +123,9 @@ INDEX = """
       <input type="text" name="subject" placeholder="player in the white shirt, near side">
     </label>
   </div>
+  <label>Working on (optional — given to the coach as context)
+    <input type="text" name="note" placeholder="e.g. backhand drop to kitchen">
+  </label>
   <div class="row">
     <label>Start (s)<input type="number" name="start" step="0.5" min="0" placeholder="optional"></label>
     <label>Duration (s)<input type="number" name="duration" step="0.5" min="0" placeholder="optional"></label>
@@ -219,6 +222,7 @@ SESSION = """
 {% extends base %}{% block body %}
 <p><a href="/">← back</a></p>
 <p class="sub">{{ row['filename'] }} · focus: {{ row['focus'] }}
+   {% if note %}· working on: “{{ note }}”{% endif %}
    · {{ row['created_at'][:16].replace('T',' ') }}</p>
 <video controls src="/video/{{ row['id'] }}"></video>
 
@@ -309,6 +313,7 @@ def run_analyze(
     file: UploadFile,
     focus: str = Form("serve"),
     subject: str = Form(""),
+    note: str = Form(""),
     start: str = Form(""),
     duration: str = Form(""),
     interval: float = Form(0.5),
@@ -328,6 +333,7 @@ def run_analyze(
         result = core.process_video(
             Path(tmp.name), file.filename or "clip", focus,
             subject.strip() or None, params, source="ui",
+            note=note.strip() or None,
         )
     return RedirectResponse(f"/session/{result['sid']}", status_code=303)
 
@@ -340,7 +346,11 @@ def session(sid: str) -> HTMLResponse:
         return HTMLResponse("Not found", status_code=404)
     report = json.loads(row["report"]) if row["status"] == "ok" else None
     raw = json.dumps(report, indent=2) if report else row["report"]
-    return HTMLResponse(render(SESSION, row=row, report=report, raw=raw))
+    try:
+        note = json.loads(row["params"]).get("note")
+    except Exception:
+        note = None
+    return HTMLResponse(render(SESSION, row=row, report=report, raw=raw, note=note))
 
 
 @app.get("/video/{sid}")

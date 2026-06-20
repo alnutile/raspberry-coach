@@ -63,6 +63,7 @@ def process_video(
     subject: str | None,
     params: dict,
     source: str = "ui",
+    note: str | None = None,
 ) -> dict:
     """Analyze a video and record it. Returns a summary dict (never raises for
     analysis failures — those are stored as status='error' rows)."""
@@ -73,6 +74,7 @@ def process_video(
     stored = UPLOAD_DIR / f"{sid}{ext}"
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src_path, stored)
+    params = {**params, "note": note}  # record the note alongside the run
 
     status, confidence, subj_analyzed, report_text, frames_used = "ok", None, None, None, None
     report: dict | None = None
@@ -83,7 +85,7 @@ def process_video(
                 start=params.get("start"), duration=params.get("duration"),
             )
             frames_used = len(frames)
-            report = coach.analyze(frames, focus, subject)
+            report = coach.analyze(frames, focus, subject, note)
         report_text = json.dumps(report)
         confidence = report.get("confidence")
         subj_analyzed = report.get("subject_analyzed")

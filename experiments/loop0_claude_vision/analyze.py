@@ -157,7 +157,8 @@ def extract_frames(
     return frames[:max_frames]
 
 
-def build_content(frames: list[Path], focus: str, subject: str | None) -> list[dict]:
+def build_content(frames: list[Path], focus: str, subject: str | None,
+                  note: str | None = None) -> list[dict]:
     """Interleave labeled frames into a single vision message."""
     if subject:
         who = (
@@ -171,12 +172,19 @@ def build_content(frames: list[Path], focus: str, subject: str | None) -> list[d
             f"practicing their {focus} (usually the most involved in the action) "
             "and analyze only that person, consistently, across all frames."
         )
+    label = ""
+    if note:
+        label = (
+            f' The player labeled this clip "{note}" — treat that as their own '
+            "description of what they're practicing and tailor your feedback to "
+            "it, but only report what you can actually see in the frames."
+        )
     content: list[dict] = [
         {
             "type": "text",
             "text": (
                 f"Here are {len(frames)} frames sampled in order from a pickleball "
-                f"practice clip. The player is working on their {focus}. {who} "
+                f"practice clip. The player is working on their {focus}.{label} {who} "
                 "Analyze what you can actually see across the sequence."
             ),
         }
@@ -193,7 +201,8 @@ def build_content(frames: list[Path], focus: str, subject: str | None) -> list[d
     return content
 
 
-def analyze(frames: list[Path], focus: str, subject: str | None) -> dict:
+def analyze(frames: list[Path], focus: str, subject: str | None,
+            note: str | None = None) -> dict:
     client = anthropic.Anthropic()
     guide = FOCUS_GUIDES.get(focus, FOCUS_GUIDES["general"])
 
@@ -213,7 +222,7 @@ def analyze(frames: list[Path], focus: str, subject: str | None) -> dict:
         max_tokens=4000,
         thinking={"type": "adaptive"},
         system=system,
-        messages=[{"role": "user", "content": build_content(frames, focus, subject)}],
+        messages=[{"role": "user", "content": build_content(frames, focus, subject, note)}],
         output_config={"format": {"type": "json_schema", "schema": REPORT_SCHEMA}},
     )
     text = next(b.text for b in response.content if b.type == "text")
@@ -234,6 +243,7 @@ def main() -> None:
     parser.add_argument("--start", type=float, help="Trim: seconds into the clip to start sampling.")
     parser.add_argument("--duration", type=float, help="Trim: seconds of clip to sample from --start.")
     parser.add_argument("--subject", help="Who to analyze in plain language, e.g. 'player in the white shirt, near side'. Important for doubles footage.")
+    parser.add_argument("--note", help="What you're working on, in your words, e.g. 'backhand drop to kitchen'. Given to the coach as context.")
     parser.add_argument("--out", type=Path, help="Write the JSON report here too.")
     args = parser.parse_args()
 
@@ -256,7 +266,7 @@ def main() -> None:
             start=args.start, duration=args.duration,
         )
         print(f"Sampled {len(frames)} frames; asking {MODEL} for a read...", file=sys.stderr)
-        report = analyze(frames, args.focus, args.subject)
+        report = analyze(frames, args.focus, args.subject, args.note)
 
     out = json.dumps(report, indent=2)
     print(out)
